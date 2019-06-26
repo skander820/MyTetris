@@ -117,6 +117,9 @@ class MainWin:
         surface, rect = draw_text('GameOver', self.get_font(30), (0, 0, 0))
         rect.center = pygame.Rect(config.main_board_rect).center
         self.screen.blit(surface, rect)
+        surface, rect = draw_text('Press any key to restart', self.get_font(12), (0, 0, 0))
+        rect.center = pygame.Rect(config.main_board_rect.move(0, 20)).center
+        self.screen.blit(surface, rect)
         while check_key_press() is None:
             pygame.display.update()
 
