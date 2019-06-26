@@ -16,6 +16,7 @@ pygame.init()
 FONT_BASE = pygame.font.Font('freesansbold.ttf', 18)  # 字体
 FONT_BIG = pygame.font.Font('freesansbold.ttf', 100)
 
+
 def draw_text(text, font, color):
     surf = font.render(text, True, color)
     return surf, surf.get_rect()
@@ -36,8 +37,6 @@ class MainWin:
 
     def __init__(self):
         pygame.init()
-        self.FONT_BASE = pygame.font.Font('freesansbold.ttf', 18)
-        self.FONT_BIG = pygame.font.Font('freesansbold.ttf', 100)
         self.screen = None
         self.score = 0
         self.level = 0
@@ -46,6 +45,12 @@ class MainWin:
         self.time = pygame.time.get_ticks()
         self.cycle = config.cycle
         self.board = np.zeros((config.num_x, config.num_y), dtype=np.int)
+        self.next = self.get_new_square()
+        self.spare = None
+
+    @staticmethod
+    def get_font(size):
+        return pygame.font.Font('freesansbold.ttf', size)
 
     def run(self):
         self.screen = pygame.display.set_mode([config.main_weight, config.main_height])
@@ -60,10 +65,8 @@ class MainWin:
     def game_process(self):
         self.screen.fill(config.color_bg)
         pygame.draw.rect(self.screen, config.color_main_board_line, config.main_board_rect, config.size_main_board_line)
-        pygame.draw.rect(self.screen, config.color_score_board_line, config.score_board_rect,
-                         config.size_score_board_line)
-        pygame.draw.rect(self.screen, config.color_next_board_line, config.next_board_rect, config.size_next_board_line)
         pygame.display.update()
+        self.draw_spare()
         while True:
             self.clock.tick(30)
             now = pygame.time.get_ticks()
@@ -72,11 +75,13 @@ class MainWin:
                 self.show_score()
                 if np.sum(self.board[:, 0]) > 0:
                     break
-                self.current = self.get_new_square()
+                self.current = self.next
+                self.next = self.get_new_square()
+                self.draw_next()
             if now - self.time >= self.cycle:  # 如果时间间隔超过当前的cycle
                 self.move(0, 1)  # 方块下落生成等过程
                 self.time = now
-            self.draw()
+            self.draw(config.main_board_rect, self.board)
             pygame.display.update(config.main_board_rect)  # 刷新
             for evt in pygame.event.get():  # 退出
                 if evt.type == pygame.QUIT:
@@ -91,12 +96,28 @@ class MainWin:
                         self.trans()
                     elif evt.key == K_DOWN:
                         self.move(0, 1)
+                    elif evt.key == K_SPACE:
+                        self.swap()
         self.board.fill(0)
-        surface, rect = draw_text('GameOver', self.FONT_BASE, (0, 0, 0))
+        surface, rect = draw_text('GameOver', self.get_font(30), (0, 0, 0))
         rect.center = pygame.Rect(config.main_board_rect).center
         self.screen.blit(surface, rect)
         while check_key_press() is None:
             pygame.display.update()
+
+    def swap(self):
+        self.draw_current(False)
+        if not self.is_swap_collide():
+            self.current, self.spare = self.spare, self.current
+            if not self.current:
+                self.current = self.next
+                self.next = self.get_new_square()
+            else:
+                self.current['x'] = self.spare['x']
+                self.current['y'] = self.spare['y']
+            self.draw_next()
+            self.draw_spare()
+        self.draw_current(True)
 
     def trans(self):
         self.draw_current(False)
@@ -127,12 +148,31 @@ class MainWin:
                 return True
         return False
 
+    def is_swap_collide(self):
+        if self.spare:
+            for xi, yi in self.get_square_coordinate(self.spare):
+                x_board = self.current['x'] + xi
+                y_board = self.current['y'] + yi
+                if (x_board in range(config.num_x)) and y_board < config.num_y:
+                    if self.board[x_board, y_board] == 1:
+                        return True
+                else:
+                    return True
+        return False
+
     def get_current(self, rotation) -> np.ndarray:
-        return np.asarray(shapes[self.current['shape']])[(self.current['rotation'] + rotation) % self.current['len'], :,
+        return self.get_square_array(self.current, rotation)
+
+    @staticmethod
+    def get_square_array(square, rotation):
+        return np.asarray(shapes[square['shape']])[(square['rotation'] + rotation) % square['len'], :,
                :]
 
     def get_current_coordinate(self, rotation=0):
         return zip(*np.where(self.get_current(rotation) == 1))
+
+    def get_square_coordinate(self, square, rotation=0):
+        return zip(*np.where(self.get_square_array(square, rotation) == 1))
 
     def draw_current(self, flag=True):
         for xi, yi in self.get_current_coordinate():
@@ -145,6 +185,23 @@ class MainWin:
                 else:
                     if self.board[x, y] == 1:
                         self.board[x, y] = 0
+
+    def draw_next(self):
+        surface, rect = draw_text(f'next', self.get_font(24), (0, 0, 0))
+        rect.center = pygame.Rect(config.next_board_rect.move(-60, -90)).center
+        self.screen.blit(surface, rect)
+        pygame.display.update(rect)
+        self.draw(config.next_board_rect.move(0, 30), self.get_square_array(self.next, 0))
+        pygame.display.update(config.next_board_rect.move(0, 30))
+
+    def draw_spare(self):
+        surface, rect = draw_text(f'swap', self.get_font(24), (0, 0, 0))
+        rect.center = pygame.Rect(config.next_board_rect.move(60, -90)).center
+        self.screen.blit(surface, rect)
+        pygame.display.update(rect)
+        if self.spare:
+            self.draw(config.next_board_rect.move(120, 30), self.get_square_array(self.spare, 0))
+            pygame.display.update(config.next_board_rect.move(120, 0))
 
     def check(self):
         (lines,) = np.where(np.sum(self.board, axis=0) == config.num_x)
@@ -159,10 +216,11 @@ class MainWin:
             self.cycle = config.cycle // config.level[self.level]
 
     def show_score(self):
-        surface, rect = draw_text(f'{self.score}', self.FONT_BASE, (0, 0, 0))
+        surface, rect = draw_text(f'score: {self.score}', self.get_font(30), (0, 0, 0))
         rect.center = pygame.Rect(config.score_board_rect).center
         self.screen.blit(surface, rect)
         pygame.display.update(rect)
+
     @staticmethod
     def get_new_square():
         square = {
@@ -174,18 +232,18 @@ class MainWin:
         square.setdefault('rotation', random.randint(0, square['len']))
         return square
 
-    def draw(self):
-        for x, y in [self.get_abs(*p) for p in zip(*np.where(self.board == 0))]:
+    def draw(self, board, ndboard):
+        for x, y in [self.get_abs(*p, board=board) for p in zip(*np.where(ndboard == 0))]:
             pygame.draw.rect(self.screen, (255, 255, 255),
                              (x, y, config.base_square_weight, config.base_square_height), 1)
-        for x, y in [self.get_abs(*p) for p in zip(*np.where(self.board == 1))]:
+        for x, y in [self.get_abs(*p, board=board) for p in zip(*np.where(ndboard == 1))]:
             pygame.draw.rect(self.screen, config.color_main_board_line,
                              (x, y, config.base_square_weight, config.base_square_height), 1)
 
-    def get_abs(self, x, y):
-        return config.main_board_x + x * (config.base_square_weight + config.gap_square) + config.gap_square, \
-               config.main_board_y + y * (config.base_square_height + config.gap_square) + config.gap_square
+    def get_abs(self, x, y, board):
+        return board.x + x * (config.base_square_weight + config.gap_square) + config.gap_square, \
+               board.y + y * (config.base_square_height + config.gap_square) + config.gap_square
 
 
 if __name__ == '__main__':
-        MainWin().run()
+    MainWin().run()
