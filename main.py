@@ -43,10 +43,14 @@ class MainWin:
         self.clock = None
         self.current = None
         self.time = pygame.time.get_ticks()
+        self.move_time = pygame.time.get_ticks()
         self.cycle = config.cycle
         self.board = np.zeros((config.num_x, config.num_y), dtype=np.int)
         self.next = self.get_new_square()
         self.spare = None
+        self.left_status = False
+        self.right_status = False
+        self.down_status = False
 
     @staticmethod
     def get_font(size):
@@ -70,6 +74,10 @@ class MainWin:
         while True:
             self.clock.tick(30)
             now = pygame.time.get_ticks()
+            move_now = pygame.time.get_ticks()
+            if move_now - self.move_time >= config.min_move_gap:
+                self.move_status()
+                self.move_time=move_now
             if not self.current:
                 self.check()
                 self.show_score()
@@ -89,21 +97,36 @@ class MainWin:
                     sys.exit()
                 elif evt.type == pygame.KEYDOWN:
                     if evt.key == K_LEFT:
-                        self.move(-1, 0)
+                        self.left_status = True
                     elif evt.key == K_RIGHT:
-                        self.move(1, 0)
+                        self.right_status = True
                     elif evt.key == K_UP:
                         self.trans()
                     elif evt.key == K_DOWN:
-                        self.move(0, 1)
+                        self.down_status = True
                     elif evt.key == K_SPACE:
                         self.swap()
+                elif evt.type == pygame.KEYUP:
+                    if evt.key == K_LEFT:
+                        self.left_status = False
+                    elif evt.key == K_RIGHT:
+                        self.right_status = False
+                    elif evt.key == K_DOWN:
+                        self.down_status = False
         self.board.fill(0)
         surface, rect = draw_text('GameOver', self.get_font(30), (0, 0, 0))
         rect.center = pygame.Rect(config.main_board_rect).center
         self.screen.blit(surface, rect)
         while check_key_press() is None:
             pygame.display.update()
+
+    def move_status(self):
+        if self.left_status:
+            self.move(-1, 0)
+        if self.right_status:
+            self.move(1, 0)
+        if self.down_status:
+            self.move(0, 1)
 
     def swap(self):
         self.draw_current(False)
