@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
-# @Time    : 2019/6/20 11:12
-# @Author  : Wu Yingfan
-# @Email   : yingfan.w@sunyard.com
-# @File    : main.py
-# from lib.mainWin import MainWin
 import pygame
 from pygame import *
 import sys, numpy as np
